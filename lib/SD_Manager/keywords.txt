@@ -1,0 +1,40 @@
+#######################################
+# Syntax Coloring Map For SD_Manager
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+SD_Manager	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+end	KEYWORD2
+getCardSize	KEYWORD2
+getUsedSpace	KEYWORD2
+getFreeSpace	KEYWORD2
+getCardType	KEYWORD2
+getCardTypeString	KEYWORD2
+fileExists	KEYWORD2
+createFile	KEYWORD2
+deleteFile	KEYWORD2
+renameFile	KEYWORD2
+getFileSize	KEYWORD2
+readFile	KEYWORD2
+writeFile	KEYWORD2
+appendFile	KEYWORD2
+createDir	KEYWORD2
+removeDir	KEYWORD2
+dirExists	KEYWORD2
+listDir	KEYWORD2
+testSDCard	KEYWORD2
+printCardInfo	KEYWORD2
+isCardMounted	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################

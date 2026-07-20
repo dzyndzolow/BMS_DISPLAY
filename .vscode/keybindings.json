@@ -1,0 +1,14 @@
+[
+    {
+        "key": "ctrl+alt+u",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Upload via USB",
+        "when": "editorTextFocus"
+    },
+    {
+        "key": "ctrl+alt+o",
+        "command": "workbench.action.tasks.runTask",
+        "args": "Upload via OTA",
+        "when": "editorTextFocus"
+    }
+]

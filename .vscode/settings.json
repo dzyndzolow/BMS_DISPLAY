@@ -1,0 +1,6 @@
+{
+    "clangd.arguments": [
+        "--compile-commands-dir=c:/JC4827W543_PIO_develop/.cache/clangd",
+        "--query-driver=C:/Users/dzynd/.platformio/packages/toolchain-*/bin/*,C:/Users/dzynd/.platformio/packages/tool-*/bin/*"
+    ]
+}

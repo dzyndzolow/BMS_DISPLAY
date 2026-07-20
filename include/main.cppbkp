@@ -1,0 +1,298 @@
+/*******************************************************************************
+ * LVGL Widgets Demo for JC4827W543
+ * ESP32-S3 with 480x272 NV3041A QSPI Display + GT911 Touch
+ * 
+ * PlatformIO Project
+ ******************************************************************************/
+
+#include <Arduino.h>
+#include <Arduino_GFX_Library.h>
+#include <lvgl.h>
+#include "touch.h"
+
+// Display pins for QSPI NV3041A
+#define GFX_BL 1  // Backlight
+#define TFT_CS 45
+#define TFT_SCK 47
+#define TFT_D0 21
+#define TFT_D1 48
+#define TFT_D2 40
+#define TFT_D3 39
+
+// Screen resolution
+#define SCREEN_WIDTH 480
+#define SCREEN_HEIGHT 272
+
+// LVGL buffer size (lines)
+#define LVGL_BUFFER_LINES 40
+
+// Display objects
+Arduino_DataBus *bus = new Arduino_ESP32QSPI(
+    TFT_CS, TFT_SCK, TFT_D0, TFT_D1, TFT_D2, TFT_D3);
+Arduino_GFX *g = new Arduino_NV3041A(bus, GFX_NOT_DEFINED /* RST */, 0 /* rotation */, true /* IPS */);
+Arduino_GFX *gfx = new Arduino_Canvas(SCREEN_WIDTH, SCREEN_HEIGHT, g);
+
+// LVGL variables
+static lv_disp_draw_buf_t draw_buf;
+static lv_color_t *disp_draw_buf;
+static lv_disp_drv_t disp_drv;
+
+/* Display flushing callback */
+void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
+{
+  uint32_t w = (area->x2 - area->x1 + 1);
+  uint32_t h = (area->y2 - area->y1 + 1);
+
+#if (LV_COLOR_16_SWAP != 0)
+  gfx->draw16bitBeRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
+#else
+  gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
+#endif
+
+  lv_disp_flush_ready(disp);
+}
+
+/* Touchpad reading callback */
+void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
+{
+  if (touch_has_signal())
+  {
+    if (touch_touched())
+    {
+      data->state = LV_INDEV_STATE_PR;
+      data->point.x = touch_last_x;
+      data->point.y = touch_last_y;
+    }
+    else if (touch_released())
+    {
+      data->state = LV_INDEV_STATE_REL;
+    }
+  }
+  else
+  {
+    data->state = LV_INDEV_STATE_REL;
+  }
+}
+
+/* Create demo UI with gradient background and performance monitor */
+void create_demo_ui()
+{
+  lv_obj_t *scr = lv_obj_create(NULL);
+
+  // ===== GRADIENT BACKGROUND =====
+  lv_obj_set_style_bg_grad_color(scr, lv_color_hex(0x303030), 0);  // Ciemny szary
+  lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);       // Czarny
+  lv_obj_set_style_bg_grad_dir(scr, LV_GRAD_DIR_VER, 0);           // Pionowy gradient
+  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+  // ===== TOP BAR (WiFi/BT icons area) =====
+  lv_obj_t *top_bar = lv_obj_create(scr);
+  lv_obj_set_size(top_bar, 480, 30);
+  lv_obj_align(top_bar, LV_ALIGN_TOP_MID, 0, 0);
+  lv_obj_set_style_bg_color(top_bar, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_border_width(top_bar, 0, 0);
+  lv_obj_set_style_radius(top_bar, 0, 0);
+
+  // WiFi icon (text)
+  lv_obj_t *wifi_icon = lv_label_create(top_bar);
+  lv_label_set_text(wifi_icon, LV_SYMBOL_WIFI);
+  lv_obj_align(wifi_icon, LV_ALIGN_RIGHT_MID, -40, 0);
+  lv_obj_set_style_text_color(wifi_icon, lv_color_white(), 0);
+
+  // BT icon
+  lv_obj_t *bt_icon = lv_label_create(top_bar);
+  lv_label_set_text(bt_icon, LV_SYMBOL_BLUETOOTH);
+  lv_obj_align(bt_icon, LV_ALIGN_RIGHT_MID, -10, 0);
+  lv_obj_set_style_text_color(bt_icon, lv_color_white(), 0);
+
+  // ===== CPU USAGE METER =====
+  static lv_obj_t *cpu_label;
+  cpu_label = lv_label_create(scr);
+  lv_label_set_text(cpu_label, "CPU: 0%");
+  lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, 10, 5);
+  lv_obj_set_style_text_color(cpu_label, lv_color_hex(0x00FF00), 0);
+
+  // ===== FPS COUNTER =====
+  static lv_obj_t *fps_label;
+  fps_label = lv_label_create(scr);
+  lv_label_set_text(fps_label, "FPS: 0");
+  lv_obj_align(fps_label, LV_ALIGN_TOP_LEFT, 10, 20);
+  lv_obj_set_style_text_color(fps_label, lv_color_hex(0x00FFFF), 0);
+
+  // ===== TITLE =====
+  lv_obj_t *title = lv_label_create(scr);
+  lv_label_set_text(title, "ESP32-S3 LVGL Demo");
+  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 50);
+  lv_obj_set_style_text_color(title, lv_color_white(), 0);
+
+  // ===== GRID OF BUTTONS (like in image) =====
+  static const char *btn_labels[] = {"Image", "Button", "Animation", "Slider",
+                                      "Switch", "Text", "Progress", "Curve"};
+  static const uint32_t btn_colors[] = {0xFF4444, 0x44FF44, 0xFFCC00, 0x4499FF,
+                                         0x4499FF, 0xFF9944, 0x9944FF, 0xFF44AA};
+
+  for (int i = 0; i < 8; i++) {
+    int row = i / 4;
+    int col = i % 4;
+    
+    lv_obj_t *btn = lv_btn_create(scr);
+    lv_obj_set_size(btn, 80, 80);
+    lv_obj_align(btn, LV_ALIGN_TOP_LEFT, 60 + col * 100, 90 + row * 100);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(btn_colors[i]), 0);
+    lv_obj_set_style_radius(btn, 15, 0);
+    
+    // Icon placeholder (colored square)
+    lv_obj_t *icon_box = lv_obj_create(btn);
+    lv_obj_set_size(icon_box, 50, 50);
+    lv_obj_center(icon_box);
+    lv_obj_set_style_bg_color(icon_box, lv_color_white(), 0);
+    lv_obj_set_style_border_width(icon_box, 0, 0);
+    lv_obj_set_style_radius(icon_box, 10, 0);
+    
+    // Label below button
+    lv_obj_t *label = lv_label_create(scr);
+    lv_label_set_text(label, btn_labels[i]);
+    lv_obj_align_to(label, btn, LV_ALIGN_OUT_BOTTOM_MID, 0, 5);
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+  }
+
+  // ===== PAGE INDICATOR (dots) =====
+  for (int i = 0; i < 3; i++) {
+    lv_obj_t *dot = lv_obj_create(scr);
+    lv_obj_set_size(dot, 8, 8);
+    lv_obj_align(dot, LV_ALIGN_BOTTOM_MID, -20 + i * 20, -10);
+    lv_obj_set_style_bg_color(dot, i == 0 ? lv_color_white() : lv_color_hex(0x666666), 0);
+    lv_obj_set_style_border_width(dot, 0, 0);
+    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+  }
+
+  lv_scr_load(scr);
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println("\n\n===========================================");
+  Serial.println("JC4827W543 LVGL Demo - PlatformIO");
+  Serial.println("ESP32-S3 + NV3041A + GT911");
+  Serial.println("===========================================\n");
+
+  // Initialize display
+  Serial.println("Initializing display...");
+  if (!gfx->begin())
+  {
+    Serial.println("ERROR: Display initialization failed!");
+    while(1) { delay(1000); }
+  }
+  gfx->fillScreen(BLACK);
+  Serial.println("✓ Display initialized");
+
+  // Backlight on
+  pinMode(GFX_BL, OUTPUT);
+  digitalWrite(GFX_BL, HIGH);
+  Serial.println("✓ Backlight ON");
+
+  // Initialize touch
+  Serial.println("Initializing touch panel...");
+  touch_init(SCREEN_WIDTH, SCREEN_HEIGHT, 0);
+  Serial.println("✓ Touch initialized");
+
+  // Initialize LVGL
+  Serial.println("Initializing LVGL...");
+  lv_init();
+
+  // Allocate buffer
+  uint32_t bufSize = SCREEN_WIDTH * LVGL_BUFFER_LINES;
+  disp_draw_buf = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * bufSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!disp_draw_buf)
+  {
+    disp_draw_buf = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * bufSize, MALLOC_CAP_8BIT);
+  }
+  
+  if (!disp_draw_buf)
+  {
+    Serial.println("ERROR: LVGL buffer allocation failed!");
+    while(1) { delay(1000); }
+  }
+  Serial.printf("✓ LVGL buffer allocated: %d bytes\n", sizeof(lv_color_t) * bufSize);
+
+  lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, NULL, bufSize);
+
+  // Initialize display driver
+  lv_disp_drv_init(&disp_drv);
+  disp_drv.hor_res = SCREEN_WIDTH;
+  disp_drv.ver_res = SCREEN_HEIGHT;
+  disp_drv.flush_cb = my_disp_flush;
+  disp_drv.draw_buf = &draw_buf;
+  lv_disp_drv_register(&disp_drv);
+  Serial.println("✓ Display driver registered");
+
+  // Initialize input driver
+  static lv_indev_drv_t indev_drv;
+  lv_indev_drv_init(&indev_drv);
+  indev_drv.type = LV_INDEV_TYPE_POINTER;
+  indev_drv.read_cb = my_touchpad_read;
+  lv_indev_drv_register(&indev_drv);
+  Serial.println("✓ Touch driver registered");
+
+  // Create UI
+  Serial.println("Creating demo UI...");
+  create_demo_ui();
+
+  Serial.println("\n===========================================");
+  Serial.println("✓ Setup complete! Touch the screen.");
+  Serial.println("===========================================\n");
+}
+
+// Performance monitoring variables
+static uint32_t last_fps_update = 0;
+static uint32_t frame_count = 0;
+static uint32_t last_cpu_update = 0;
+
+void loop()
+{
+  uint32_t start = millis();
+  
+  lv_timer_handler();  // Handle LVGL tasks
+  gfx->flush();        // Update canvas to display
+  
+  frame_count++;
+  
+  // Update FPS counter every 1 second
+  if (millis() - last_fps_update >= 1000) {
+    lv_obj_t *fps_label = lv_obj_get_child(lv_scr_act(), 2);  // 3rd child
+    if (fps_label) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "FPS: %d", frame_count);
+      lv_label_set_text(fps_label, buf);
+    }
+    frame_count = 0;
+    last_fps_update = millis();
+  }
+  
+  // Update CPU usage every 500ms
+  if (millis() - last_cpu_update >= 500) {
+    uint32_t elapsed = millis() - start;
+    uint32_t cpu_usage = (elapsed * 100) / 5;  // % of 5ms budget
+    if (cpu_usage > 100) cpu_usage = 100;
+    
+    lv_obj_t *cpu_label = lv_obj_get_child(lv_scr_act(), 1);  // 2nd child
+    if (cpu_label) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "CPU: %d%%", cpu_usage);
+      lv_label_set_text(cpu_label, buf);
+      
+      // Change color based on load
+      if (cpu_usage < 50) {
+        lv_obj_set_style_text_color(cpu_label, lv_color_hex(0x00FF00), 0);  // Green
+      } else if (cpu_usage < 80) {
+        lv_obj_set_style_text_color(cpu_label, lv_color_hex(0xFFFF00), 0);  // Yellow
+      } else {
+        lv_obj_set_style_text_color(cpu_label, lv_color_hex(0xFF0000), 0);  // Red
+      }
+    }
+    last_cpu_update = millis();
+  }
+  
+  delay(5);
+}
