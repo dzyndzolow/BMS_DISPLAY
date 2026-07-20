@@ -14,7 +14,7 @@
 #define CANVAS 1
 
 #define GFX_BL 1
-const uint16_t BLACK = 0xFFFF;
+const uint16_t COLOR_BLACK_INIT = 0x0000;
 
 /*Global GFX instance*/
 static Arduino_DataBus *bus = nullptr;
@@ -74,7 +74,7 @@ static bool init_gfx_hardware() {
     return false;
   }
 
-  gfx->fillScreen(BLACK);
+  gfx->fillScreen(COLOR_BLACK_INIT);
 
   /*Setup backlight PWM*/
   ledcAttach(GFX_BL, 20000, 8);
