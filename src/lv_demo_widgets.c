@@ -112,7 +112,8 @@ static lv_obj_t *reset_btn = NULL;
 static lv_obj_t *sd_left_panel = NULL;
 static lv_obj_t *sd_right_panel = NULL;
 static lv_obj_t *color_changer_cont = NULL;
-static lv_obj_t *color_changer_btn = NULL;
+static lv_obj_t *color_changer_title_cont = NULL;
+static lv_obj_t *color_changer_swatches_cont = NULL;
 
 static const uint32_t custom_colors[7] = {
     0x1D70D8, /* Electric Blue (Default) */
@@ -319,7 +320,6 @@ void lv_demo_widgets(void) {
   shop_create(t3);
   settings_create(t4);
   sd_card_tab_create(t5);
-  color_changer_create(tv);
   bottom_nav_create(); /* Permanent bottom navigation bar */
 }
 
@@ -342,6 +342,9 @@ static void settings_create(lv_obj_t *parent) {
   lv_obj_t *title = lv_label_create(panel);
   lv_label_set_text(title, "Display Settings");
   lv_obj_add_style(title, &style_title, 0);
+
+  /* System Color Manager placed right under Display Settings title */
+  color_changer_create(panel);
 
 #if LV_USE_PERF_MONITOR
   /*Performance Monitor toggle*/
@@ -1492,143 +1495,101 @@ static void update_accent_color(lv_color_t color) {
   if (chart2 && ser3)
     lv_chart_set_series_color(chart2, ser3, color);
 
-  /* Floating Droplet button & expanded menu container */
+  /* System Color manager container */
   if (color_changer_cont) {
     lv_obj_set_style_border_color(color_changer_cont, color, 0);
-  }
-  if (color_changer_btn) {
-    lv_obj_set_style_border_color(color_changer_btn, color, 0);
   }
 
   lv_obj_invalidate(lv_scr_act());
 }
 
-static void color_changer_create(lv_obj_t *parent) {
-  lv_obj_t *color_cont = lv_obj_create(parent);
-  color_changer_cont = color_cont;
-  lv_obj_remove_style_all(color_cont);
-  lv_obj_set_flex_flow(color_cont, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(color_cont, LV_FLEX_ALIGN_SPACE_EVENLY,
-                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_add_flag(color_cont, LV_OBJ_FLAG_FLOATING);
-
-  lv_obj_set_style_bg_color(color_cont, lv_color_hex(0x111622), 0);
-  lv_obj_set_style_border_color(color_cont, current_accent_color, 0);
-  lv_obj_set_style_border_width(color_cont, 1, 0);
-  lv_obj_set_style_pad_right(
-      color_cont, disp_size == DISP_SMALL ? LV_DPX(47) : LV_DPX(55), 0);
-  lv_obj_set_style_bg_opa(color_cont, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(color_cont, LV_RADIUS_CIRCLE, 0);
-
-  if (disp_size == DISP_SMALL)
-    lv_obj_set_size(color_cont, LV_DPX(52), LV_DPX(52));
-  else
-    lv_obj_set_size(color_cont, LV_DPX(60), LV_DPX(60));
-
-  lv_obj_align(color_cont, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(10), -LV_DPX(10));
-
-  for (uint32_t i = 0; i < 7; i++) {
-    lv_obj_t *c = lv_btn_create(color_cont);
-    lv_obj_set_style_bg_color(c, lv_color_hex(custom_colors[i]), 0);
-    lv_obj_set_style_radius(c, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0);
-    lv_obj_set_size(c, 20, 20);
-    lv_obj_add_event_cb(c, color_event_cb, LV_EVENT_ALL,
-                        (void *)&custom_colors[i]);
-    lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-  }
-
-  color_changer_btn = lv_btn_create(parent);
-  lv_obj_add_flag(color_changer_btn,
-                  LV_OBJ_FLAG_FLOATING | LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_set_style_bg_color(color_changer_btn, lv_color_hex(0x111622), 0);
-  lv_obj_set_style_border_color(color_changer_btn, current_accent_color, 0);
-  lv_obj_set_style_border_width(color_changer_btn, 1, 0);
-  lv_obj_set_style_pad_all(color_changer_btn, 10, 0);
-  lv_obj_set_style_radius(color_changer_btn, LV_RADIUS_CIRCLE, 0);
-  lv_obj_add_event_cb(color_changer_btn, color_changer_event_cb, LV_EVENT_ALL,
-                      color_cont);
-  lv_obj_set_style_shadow_width(color_changer_btn, 0, 0);
-  lv_obj_set_style_bg_img_src(color_changer_btn, LV_SYMBOL_TINT, 0);
-
-  if (disp_size == DISP_SMALL) {
-    lv_obj_set_size(color_changer_btn, LV_DPX(42), LV_DPX(42));
-    lv_obj_align(color_changer_btn, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(15),
-                 -LV_DPX(15));
-  } else {
-    lv_obj_set_size(color_changer_btn, LV_DPX(50), LV_DPX(50));
-    lv_obj_align(color_changer_btn, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(15),
-                 -LV_DPX(15));
-  }
-}
-
-static void color_changer_anim_cb(void *var, int32_t v) {
-  lv_obj_t *obj = var;
-  lv_coord_t max_w = lv_obj_get_width(lv_obj_get_parent(obj)) - LV_DPX(20);
-  lv_coord_t w;
-
-  if (disp_size == DISP_SMALL) {
-    w = lv_map(v, 0, 256, LV_DPX(52), max_w);
-    lv_obj_set_width(obj, w);
-    lv_obj_align(obj, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(10), -LV_DPX(10));
-  } else {
-    w = lv_map(v, 0, 256, LV_DPX(60), max_w);
-    lv_obj_set_width(obj, w);
-    lv_obj_align(obj, LV_ALIGN_BOTTOM_RIGHT, -LV_DPX(10), -LV_DPX(10));
-  }
-
-  if (v > LV_OPA_COVER)
-    v = LV_OPA_COVER;
-
-  uint32_t i;
-  for (i = 0; i < lv_obj_get_child_cnt(obj); i++) {
-    lv_obj_set_style_opa(lv_obj_get_child(obj, i), v, 0);
-  }
-}
-
 static void color_changer_event_cb(lv_event_t *e) {
   if (lv_event_get_code(e) == LV_EVENT_CLICKED) {
-    lv_obj_t *color_cont = lv_event_get_user_data(e);
-    if (lv_obj_get_width(color_cont) < LV_HOR_RES / 2) {
-      lv_anim_t a;
-      lv_anim_init(&a);
-      lv_anim_set_var(&a, color_cont);
-      lv_anim_set_exec_cb(&a, color_changer_anim_cb);
-      lv_anim_set_values(&a, 0, 256);
-      lv_anim_set_time(&a, 200);
-      lv_anim_start(&a);
-    } else {
-      lv_anim_t a;
-      lv_anim_init(&a);
-      lv_anim_set_var(&a, color_cont);
-      lv_anim_set_exec_cb(&a, color_changer_anim_cb);
-      lv_anim_set_values(&a, 256, 0);
-      lv_anim_set_time(&a, 200);
-      lv_anim_start(&a);
+    if (color_changer_swatches_cont && color_changer_title_cont) {
+      bool is_hidden = lv_obj_has_flag(color_changer_swatches_cont, LV_OBJ_FLAG_HIDDEN);
+      if (is_hidden) {
+        /* Expand swatches, hide "System Color" text */
+        lv_obj_clear_flag(color_changer_swatches_cont, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(color_changer_title_cont, LV_OBJ_FLAG_HIDDEN);
+      } else {
+        /* Collapse swatches, show "System Color" text */
+        lv_obj_add_flag(color_changer_swatches_cont, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(color_changer_title_cont, LV_OBJ_FLAG_HIDDEN);
+      }
     }
   }
 }
 
-static void color_event_cb(lv_event_t *e) {
-  lv_event_code_t code = lv_event_get_code(e);
-  lv_obj_t *obj = lv_event_get_target(e);
-
-  if (code == LV_EVENT_FOCUSED) {
-    lv_obj_t *color_cont = lv_obj_get_parent(obj);
-    if (lv_obj_get_width(color_cont) < LV_HOR_RES / 2) {
-      lv_anim_t a;
-      lv_anim_init(&a);
-      lv_anim_set_var(&a, color_cont);
-      lv_anim_set_exec_cb(&a, color_changer_anim_cb);
-      lv_anim_set_values(&a, 0, 256);
-      lv_anim_set_time(&a, 200);
-      lv_anim_start(&a);
-    }
-  } else if (code == LV_EVENT_CLICKED) {
+static void color_swatch_event_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) == LV_EVENT_CLICKED) {
     uint32_t *color_hex_ptr = (uint32_t *)lv_event_get_user_data(e);
     if (color_hex_ptr) {
       update_accent_color(lv_color_hex(*color_hex_ptr));
     }
+    /* Collapse swatches and show "System Color" text after picking a color */
+    if (color_changer_swatches_cont && color_changer_title_cont) {
+      lv_obj_add_flag(color_changer_swatches_cont, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(color_changer_title_cont, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
+static void color_changer_create(lv_obj_t *parent) {
+  /* Squarish container right under Display Settings title */
+  lv_obj_t *cont = lv_obj_create(parent);
+  color_changer_cont = cont;
+  lv_obj_set_size(cont, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(cont, 10, 0);
+  lv_obj_set_style_bg_color(cont, lv_color_hex(0x161D2B), 0);
+  lv_obj_set_style_border_color(cont, current_accent_color, 0);
+  lv_obj_set_style_border_width(cont, 1, 0);
+  lv_obj_set_style_radius(cont, 8, 0); /* Squarish outer border */
+  lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(cont, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(cont, color_changer_event_cb, LV_EVENT_CLICKED, NULL);
+
+  /* Title container (Collapsed view): Drop icon + "System Color" text */
+  lv_obj_t *title_cont = lv_obj_create(cont);
+  color_changer_title_cont = title_cont;
+  lv_obj_remove_style_all(title_cont);
+  lv_obj_set_size(title_cont, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(title_cont, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(title_cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(title_cont, 8, 0);
+  lv_obj_clear_flag(title_cont, LV_OBJ_FLAG_CLICKABLE);
+
+  /* Drop Icon */
+  lv_obj_t *drop_icn = lv_label_create(title_cont);
+  lv_label_set_text(drop_icn, LV_SYMBOL_TINT);
+  lv_obj_add_style(drop_icn, &style_icon, 0);
+  lv_obj_clear_flag(drop_icn, LV_OBJ_FLAG_CLICKABLE);
+
+  /* "System Color" Label */
+  lv_obj_t *title_lbl = lv_label_create(title_cont);
+  lv_label_set_text(title_lbl, "System Color");
+  lv_obj_add_style(title_lbl, &style_title, 0);
+  lv_obj_clear_flag(title_lbl, LV_OBJ_FLAG_CLICKABLE);
+
+  /* Color Swatches container (Expanded view): 7 color circles covering the title */
+  lv_obj_t *swatches_cont = lv_obj_create(cont);
+  color_changer_swatches_cont = swatches_cont;
+  lv_obj_remove_style_all(swatches_cont);
+  lv_obj_set_size(swatches_cont, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(swatches_cont, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(swatches_cont, LV_FLEX_ALIGN_SPACE_EVENLY,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_add_flag(swatches_cont, LV_OBJ_FLAG_HIDDEN); /* Collapsed by default */
+  lv_obj_clear_flag(swatches_cont, LV_OBJ_FLAG_CLICKABLE);
+
+  for (uint32_t i = 0; i < 7; i++) {
+    lv_obj_t *c = lv_btn_create(swatches_cont);
+    lv_obj_set_style_bg_color(c, lv_color_hex(custom_colors[i]), 0);
+    lv_obj_set_style_radius(c, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_size(c, 24, 24);
+    lv_obj_add_event_cb(c, color_swatch_event_cb, LV_EVENT_CLICKED,
+                        (void *)&custom_colors[i]);
+    lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
   }
 }
 
