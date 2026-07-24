@@ -43,6 +43,7 @@ static void analytics_create(lv_obj_t *parent);
 static void shop_create(lv_obj_t *parent);
 static void color_changer_create(lv_obj_t *parent);
 static void settings_create(lv_obj_t *parent);
+static void network_create(lv_obj_t *parent);
 static void sd_card_tab_create(lv_obj_t *parent);
 
 static lv_obj_t *create_meter_box(lv_obj_t *parent, const char *title,
@@ -108,12 +109,21 @@ static int32_t profile_soc_val = 70;
 static bool profile_soc_down = true;
 static lv_timer_t *profile_soc_timer = NULL;
 static lv_obj_t *settings_panel = NULL;
+static lv_obj_t *network_panel = NULL;
 static lv_obj_t *reset_btn = NULL;
 static lv_obj_t *sd_left_panel = NULL;
 static lv_obj_t *sd_right_panel = NULL;
 static lv_obj_t *color_changer_cont = NULL;
 static lv_obj_t *color_changer_title_cont = NULL;
 static lv_obj_t *color_changer_swatches_cont = NULL;
+
+static lv_obj_t *net_wifi_status_label = NULL;
+static lv_obj_t *net_wifi_dropdown = NULL;
+static lv_obj_t *net_wifi_pass_ta = NULL;
+static lv_obj_t *net_mqtt_status_label = NULL;
+static lv_obj_t *net_ha_disc_status_label = NULL;
+static lv_obj_t *net_ip_mode_dropdown = NULL;
+static lv_obj_t *net_ip_static_cont = NULL;
 
 static const uint32_t custom_colors[7] = {
     0x1D70D8, /* Electric Blue (Default) */
@@ -306,10 +316,11 @@ void lv_demo_widgets(void) {
   lv_obj_t *t2 = lv_tabview_add_tab(tv, "Analytics");
   lv_obj_t *t3 = lv_tabview_add_tab(tv, "Summary");
   lv_obj_t *t4 = lv_tabview_add_tab(tv, "Settings");
-  lv_obj_t *t5 = lv_tabview_add_tab(tv, "SD Card");
+  lv_obj_t *t5 = lv_tabview_add_tab(tv, "Network");
+  lv_obj_t *t6 = lv_tabview_add_tab(tv, "SD Card");
 
-  lv_obj_t *all_tabs[] = {t1, t2, t3, t4, t5};
-  for (int i = 0; i < 5; i++) {
+  lv_obj_t *all_tabs[] = {t1, t2, t3, t4, t5, t6};
+  for (int i = 0; i < 6; i++) {
     lv_obj_set_style_bg_color(all_tabs[i], lv_color_hex(0x121A28), 0);
     lv_obj_set_style_bg_grad_color(all_tabs[i], lv_color_hex(0x05070B), 0);
     lv_obj_set_style_bg_grad_dir(all_tabs[i], LV_GRAD_DIR_VER, 0);
@@ -319,7 +330,8 @@ void lv_demo_widgets(void) {
   analytics_create(t2);
   shop_create(t3);
   settings_create(t4);
-  sd_card_tab_create(t5);
+  network_create(t5);
+  sd_card_tab_create(t6);
   bottom_nav_create(); /* Permanent bottom navigation bar */
 }
 
@@ -403,6 +415,310 @@ static void settings_create(lv_obj_t *parent) {
   lv_label_set_text(reset_label, "Reset Device");
   lv_obj_center(reset_label);
   lv_obj_add_event_cb(reset_btn, reset_btn_event_cb, LV_EVENT_CLICKED, NULL);
+}
+
+static lv_obj_t *net_kb = NULL;
+
+static void ta_event_cb(lv_event_t *e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  lv_obj_t *ta = lv_event_get_target(e);
+
+  if (code == LV_EVENT_FOCUSED) {
+    if (net_kb == NULL) {
+      net_kb = lv_keyboard_create(lv_scr_act());
+      lv_obj_set_style_bg_color(net_kb, lv_color_hex(0x111622), 0);
+      lv_obj_set_style_border_color(net_kb, current_accent_color, 0);
+      lv_obj_set_style_border_width(net_kb, 1, 0);
+    }
+    lv_keyboard_set_textarea(net_kb, ta);
+    lv_obj_clear_flag(net_kb, LV_OBJ_FLAG_HIDDEN);
+  } else if (code == LV_EVENT_DEFOCUSED || code == LV_EVENT_READY) {
+    if (net_kb) {
+      lv_obj_add_flag(net_kb, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
+static void wifi_scan_btn_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+  if (net_wifi_status_label) {
+    lv_label_set_text(net_wifi_status_label, "Status: Scanning networks...");
+  }
+  if (net_wifi_dropdown) {
+    lv_dropdown_set_options(net_wifi_dropdown,
+      "BMS_Home_Network\nBMS_Workshop_5G\nESP32_Access_Point\nGuest_WiFi\n[ Manual Entry ]");
+  }
+  if (net_wifi_status_label) {
+    lv_label_set_text(net_wifi_status_label, "Status: Scan complete (4 networks found)");
+  }
+}
+
+static void wifi_connect_btn_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+  if (net_wifi_status_label) {
+    lv_label_set_text(net_wifi_status_label, "Status: Connected (192.168.1.105)");
+  }
+}
+
+static void wifi_disconnect_btn_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+  if (net_wifi_status_label) {
+    lv_label_set_text(net_wifi_status_label, "Status: Disconnected");
+  }
+}
+
+static void ip_mode_event_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+
+  if (net_ip_mode_dropdown && net_ip_static_cont) {
+    uint16_t sel = lv_dropdown_get_selected(net_ip_mode_dropdown);
+    if (sel == 1) { /* Static IP selected */
+      lv_obj_clear_flag(net_ip_static_cont, LV_OBJ_FLAG_HIDDEN);
+    } else { /* DHCP selected */
+      lv_obj_add_flag(net_ip_static_cont, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
+static void mqtt_connect_btn_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+  if (net_mqtt_status_label) {
+    lv_label_set_text(net_mqtt_status_label, "MQTT Status: Connected (broker.home:1883)");
+  }
+}
+
+static void ha_discovery_btn_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+
+  if (net_ha_disc_status_label) {
+    lv_label_set_text(net_ha_disc_status_label, "HA Auto-Discovery payload published! (14 entities)");
+  }
+}
+
+static void network_create(lv_obj_t *parent) {
+  lv_obj_t *panel = lv_obj_create(parent);
+  network_panel = panel;
+  lv_obj_set_height(panel, LV_SIZE_CONTENT);
+  lv_obj_set_width(panel, lv_pct(100));
+  lv_obj_set_style_pad_all(panel, 12, 0);
+  lv_obj_set_style_bg_color(panel, lv_color_hex(0x111622), 0);
+  lv_obj_set_style_border_color(panel, current_accent_color, 0);
+  lv_obj_set_style_border_width(panel, 1, 0);
+  lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_START);
+  lv_obj_set_style_pad_row(panel, 10, 0);
+
+  lv_obj_t *title = lv_label_create(panel);
+  lv_label_set_text(title, "Network & Connectivity");
+  lv_obj_add_style(title, &style_title, 0);
+
+  /* --- SECTION 1: WiFi Manager --- */
+  lv_obj_t *wifi_box = lv_obj_create(panel);
+  lv_obj_set_size(wifi_box, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(wifi_box, 10, 0);
+  lv_obj_set_style_bg_color(wifi_box, lv_color_hex(0x161D2B), 0);
+  lv_obj_set_style_border_color(wifi_box, lv_color_hex(0x1F2836), 0);
+  lv_obj_set_style_border_width(wifi_box, 1, 0);
+  lv_obj_set_style_radius(wifi_box, 8, 0);
+  lv_obj_set_flex_flow(wifi_box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(wifi_box, 6, 0);
+
+  /* Title + Scan Button Row */
+  lv_obj_t *w_hdr = lv_obj_create(wifi_box);
+  lv_obj_remove_style_all(w_hdr);
+  lv_obj_set_size(w_hdr, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(w_hdr, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(w_hdr, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+  lv_obj_t *w_lbl = lv_label_create(w_hdr);
+  lv_label_set_text(w_lbl, LV_SYMBOL_WIFI " WiFi Manager");
+  lv_obj_add_style(w_lbl, &style_title, 0);
+
+  lv_obj_t *scan_btn = lv_btn_create(w_hdr);
+  lv_obj_set_style_pad_ver(scan_btn, 6, 0);
+  lv_obj_set_style_pad_hor(scan_btn, 10, 0);
+  lv_obj_t *scan_lbl = lv_label_create(scan_btn);
+  lv_label_set_text(scan_lbl, LV_SYMBOL_REFRESH " Scan");
+  lv_obj_add_event_cb(scan_btn, wifi_scan_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  /* Status Label */
+  net_wifi_status_label = lv_label_create(wifi_box);
+  lv_label_set_text(net_wifi_status_label, "Status: Not connected");
+  lv_obj_add_style(net_wifi_status_label, &style_text_muted, 0);
+
+  /* Network SSID Dropdown */
+  lv_obj_t *ssid_lbl = lv_label_create(wifi_box);
+  lv_label_set_text(ssid_lbl, "Select Network (SSID)");
+  lv_obj_add_style(ssid_lbl, &style_text_muted, 0);
+
+  net_wifi_dropdown = lv_dropdown_create(wifi_box);
+  lv_obj_set_width(net_wifi_dropdown, lv_pct(100));
+  lv_dropdown_set_options(net_wifi_dropdown, "BMS_Home_Network\nESP32_Access_Point\n[ Manual Input ]");
+
+  /* WiFi Password Input */
+  lv_obj_t *pass_lbl = lv_label_create(wifi_box);
+  lv_label_set_text(pass_lbl, "WiFi Password");
+  lv_obj_add_style(pass_lbl, &style_text_muted, 0);
+
+  net_wifi_pass_ta = lv_textarea_create(wifi_box);
+  lv_obj_set_width(net_wifi_pass_ta, lv_pct(100));
+  lv_textarea_set_one_line(net_wifi_pass_ta, true);
+  lv_textarea_set_password_mode(net_wifi_pass_ta, true);
+  lv_textarea_set_placeholder_text(net_wifi_pass_ta, "Enter password...");
+  lv_obj_add_event_cb(net_wifi_pass_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+
+  /* Action Buttons (Connect / Disconnect) */
+  lv_obj_t *w_act_row = lv_obj_create(wifi_box);
+  lv_obj_remove_style_all(w_act_row);
+  lv_obj_set_size(w_act_row, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(w_act_row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(w_act_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(w_act_row, 10, 0);
+
+  lv_obj_t *conn_btn = lv_btn_create(w_act_row);
+  lv_obj_set_flex_grow(conn_btn, 1);
+  lv_obj_set_style_bg_color(conn_btn, current_accent_color, 0);
+  lv_obj_t *conn_lbl = lv_label_create(conn_btn);
+  lv_label_set_text(conn_lbl, LV_SYMBOL_OK " Connect");
+  lv_obj_center(conn_lbl);
+  lv_obj_add_event_cb(conn_btn, wifi_connect_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *disconn_btn = lv_btn_create(w_act_row);
+  lv_obj_set_flex_grow(disconn_btn, 1);
+  lv_obj_set_style_bg_color(disconn_btn, lv_color_hex(0x374151), 0);
+  lv_obj_t *disconn_lbl = lv_label_create(disconn_btn);
+  lv_label_set_text(disconn_lbl, LV_SYMBOL_CLOSE " Disconnect");
+  lv_obj_center(disconn_lbl);
+  lv_obj_add_event_cb(disconn_btn, wifi_disconnect_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  /* --- SECTION 2: IPv4 Configuration --- */
+  lv_obj_t *ip_box = lv_obj_create(panel);
+  lv_obj_set_size(ip_box, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(ip_box, 10, 0);
+  lv_obj_set_style_bg_color(ip_box, lv_color_hex(0x161D2B), 0);
+  lv_obj_set_style_border_color(ip_box, lv_color_hex(0x1F2836), 0);
+  lv_obj_set_style_border_width(ip_box, 1, 0);
+  lv_obj_set_style_radius(ip_box, 8, 0);
+  lv_obj_set_flex_flow(ip_box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(ip_box, 6, 0);
+
+  lv_obj_t *ip_title = lv_label_create(ip_box);
+  lv_label_set_text(ip_title, LV_SYMBOL_SETTINGS " IPv4 Configuration");
+  lv_obj_add_style(ip_title, &style_title, 0);
+
+  lv_obj_t *ip_mode_lbl = lv_label_create(ip_box);
+  lv_label_set_text(ip_mode_lbl, "IP Assignment Mode");
+  lv_obj_add_style(ip_mode_lbl, &style_text_muted, 0);
+
+  net_ip_mode_dropdown = lv_dropdown_create(ip_box);
+  lv_obj_set_width(net_ip_mode_dropdown, lv_pct(100));
+  lv_dropdown_set_options(net_ip_mode_dropdown, "DHCP (Dynamic IP)\nStatic IP Address");
+  lv_obj_add_event_cb(net_ip_mode_dropdown, ip_mode_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+  /* Static IP Fields Container */
+  net_ip_static_cont = lv_obj_create(ip_box);
+  lv_obj_remove_style_all(net_ip_static_cont);
+  lv_obj_set_size(net_ip_static_cont, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(net_ip_static_cont, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(net_ip_static_cont, 6, 0);
+  lv_obj_add_flag(net_ip_static_cont, LV_OBJ_FLAG_HIDDEN); /* Hidden when DHCP selected */
+
+  static const char *ip_field_names[4] = {"IP Address", "Subnet Mask", "Gateway", "Primary DNS"};
+  static const char *ip_field_placeholders[4] = {"192.168.1.150", "255.255.255.0", "192.168.1.1", "8.8.8.8"};
+
+  for (int i = 0; i < 4; i++) {
+    lv_obj_t *f_lbl = lv_label_create(net_ip_static_cont);
+    lv_label_set_text(f_lbl, ip_field_names[i]);
+    lv_obj_add_style(f_lbl, &style_text_muted, 0);
+
+    lv_obj_t *f_ta = lv_textarea_create(net_ip_static_cont);
+    lv_obj_set_width(f_ta, lv_pct(100));
+    lv_textarea_set_one_line(f_ta, true);
+    lv_textarea_set_placeholder_text(f_ta, ip_field_placeholders[i]);
+    lv_obj_add_event_cb(f_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+  }
+
+  /* --- SECTION 3: MQTT Broker & Home Assistant Auto-Discovery --- */
+  lv_obj_t *mqtt_box = lv_obj_create(panel);
+  lv_obj_set_size(mqtt_box, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_all(mqtt_box, 10, 0);
+  lv_obj_set_style_bg_color(mqtt_box, lv_color_hex(0x161D2B), 0);
+  lv_obj_set_style_border_color(mqtt_box, lv_color_hex(0x1F2836), 0);
+  lv_obj_set_style_border_width(mqtt_box, 1, 0);
+  lv_obj_set_style_radius(mqtt_box, 8, 0);
+  lv_obj_set_flex_flow(mqtt_box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(mqtt_box, 6, 0);
+
+  lv_obj_t *m_title = lv_label_create(mqtt_box);
+  lv_label_set_text(m_title, LV_SYMBOL_UPLOAD " MQTT Broker");
+  lv_obj_add_style(m_title, &style_title, 0);
+
+  net_mqtt_status_label = lv_label_create(mqtt_box);
+  lv_label_set_text(net_mqtt_status_label, "MQTT Status: Disconnected");
+  lv_obj_add_style(net_mqtt_status_label, &style_text_muted, 0);
+
+  lv_obj_t *m_host_lbl = lv_label_create(mqtt_box);
+  lv_label_set_text(m_host_lbl, "Broker Server Address");
+  lv_obj_add_style(m_host_lbl, &style_text_muted, 0);
+
+  lv_obj_t *m_host_ta = lv_textarea_create(mqtt_box);
+  lv_obj_set_width(m_host_ta, lv_pct(100));
+  lv_textarea_set_one_line(m_host_ta, true);
+  lv_textarea_set_placeholder_text(m_host_ta, "192.168.1.200 or mqtt.home");
+  lv_obj_add_event_cb(m_host_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *m_port_lbl = lv_label_create(mqtt_box);
+  lv_label_set_text(m_port_lbl, "Port");
+  lv_obj_add_style(m_port_lbl, &style_text_muted, 0);
+
+  lv_obj_t *m_port_ta = lv_textarea_create(mqtt_box);
+  lv_obj_set_width(m_port_ta, lv_pct(100));
+  lv_textarea_set_one_line(m_port_ta, true);
+  lv_textarea_set_placeholder_text(m_port_ta, "1883");
+  lv_obj_add_event_cb(m_port_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *m_user_lbl = lv_label_create(mqtt_box);
+  lv_label_set_text(m_user_lbl, "Username / Password");
+  lv_obj_add_style(m_user_lbl, &style_text_muted, 0);
+
+  lv_obj_t *m_user_ta = lv_textarea_create(mqtt_box);
+  lv_obj_set_width(m_user_ta, lv_pct(100));
+  lv_textarea_set_one_line(m_user_ta, true);
+  lv_textarea_set_placeholder_text(m_user_ta, "MQTT Username");
+  lv_obj_add_event_cb(m_user_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *m_pass_ta = lv_textarea_create(mqtt_box);
+  lv_obj_set_width(m_pass_ta, lv_pct(100));
+  lv_textarea_set_one_line(m_pass_ta, true);
+  lv_textarea_set_password_mode(m_pass_ta, true);
+  lv_textarea_set_placeholder_text(m_pass_ta, "MQTT Password");
+  lv_obj_add_event_cb(m_pass_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+
+  lv_obj_t *m_conn_btn = lv_btn_create(mqtt_box);
+  lv_obj_set_width(m_conn_btn, lv_pct(100));
+  lv_obj_set_style_bg_color(m_conn_btn, current_accent_color, 0);
+  lv_obj_t *m_conn_lbl = lv_label_create(m_conn_btn);
+  lv_label_set_text(m_conn_lbl, LV_SYMBOL_OK " Connect MQTT");
+  lv_obj_center(m_conn_lbl);
+  lv_obj_add_event_cb(m_conn_btn, mqtt_connect_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  /* Home Assistant Auto-Discovery Section */
+  lv_obj_t *ha_disc_btn = lv_btn_create(mqtt_box);
+  lv_obj_set_width(ha_disc_btn, lv_pct(100));
+  lv_obj_set_style_bg_color(ha_disc_btn, lv_color_hex(0x10B981), 0); /* Emerald Green */
+  lv_obj_t *ha_disc_lbl = lv_label_create(ha_disc_btn);
+  lv_label_set_text(ha_disc_lbl, LV_SYMBOL_UPLOAD " Publish HA Auto-Discovery");
+  lv_obj_center(ha_disc_lbl);
+  lv_obj_add_event_cb(ha_disc_btn, ha_discovery_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  net_ha_disc_status_label = lv_label_create(mqtt_box);
+  lv_label_set_text(net_ha_disc_status_label, "Home Assistant: Ready to publish");
+  lv_obj_add_style(net_ha_disc_status_label, &style_text_muted, 0);
 }
 
 /*SD Card tab*/
@@ -1462,6 +1778,9 @@ static void update_accent_color(lv_color_t color) {
   if (settings_panel) {
     lv_obj_set_style_border_color(settings_panel, color, 0);
   }
+  if (network_panel) {
+    lv_obj_set_style_border_color(network_panel, color, 0);
+  }
   if (reset_btn) {
     lv_obj_set_style_bg_color(reset_btn, color, 0);
   }
@@ -1600,7 +1919,7 @@ static void bottom_nav_btn_cb(lv_event_t *e) {
   if (tv) {
     lv_tabview_set_act(tv, tab_idx, LV_ANIM_OFF);
   }
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 6; i++) {
     lv_obj_t *label = lv_obj_get_child(bottom_nav_btns[i], 0);
     if (i == tab_idx) {
       lv_obj_set_style_bg_color(bottom_nav_btns[i], lv_color_hex(0x161C28), 0);
@@ -1624,8 +1943,8 @@ static void bottom_nav_btn_cb(lv_event_t *e) {
 
 static void bottom_nav_create(void) {
   static const char *tab_names[] = {"Profile", "Analytics", "Summary", "Settings",
-                                    "SD Card"};
-  static uint32_t tab_indices[] = {0, 1, 2, 3, 4};
+                                    "Network", "SD Card"};
+  static uint32_t tab_indices[] = {0, 1, 2, 3, 4, 5};
 
   lv_obj_t *bottom_nav = lv_obj_create(lv_scr_act());
   lv_obj_set_size(bottom_nav, LV_PCT(100), 31);
@@ -1642,7 +1961,7 @@ static void bottom_nav_create(void) {
   lv_obj_set_flex_align(bottom_nav, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
 
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 6; i++) {
     lv_obj_t *btn = lv_btn_create(bottom_nav);
     bottom_nav_btns[i] = btn;
     lv_obj_set_height(btn, LV_PCT(100));
