@@ -94,7 +94,7 @@ static disp_size_t disp_size;
 static lv_obj_t *tv;
 static lv_obj_t *status_info_cont = NULL;
 static lv_obj_t *calendar;
-static lv_obj_t *bottom_nav_btns[5];
+static lv_obj_t *bottom_nav_btns[6];
 static lv_style_t style_text_muted;
 static lv_style_t style_title;
 static lv_style_t style_icon;
