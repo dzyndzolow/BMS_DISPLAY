@@ -123,6 +123,7 @@ static lv_obj_t *net_wifi_status_label = NULL;
 static lv_obj_t *net_wifi_sw = NULL;
 static lv_obj_t *net_wifi_dropdown = NULL;
 static lv_obj_t *net_wifi_pass_ta = NULL;
+static lv_obj_t *net_saved_cont = NULL;
 static lv_obj_t *net_mqtt_status_label = NULL;
 static lv_obj_t *net_ha_disc_status_label = NULL;
 static lv_obj_t *net_ip_mode_dropdown = NULL;
@@ -490,6 +491,85 @@ static void wifi_scan_btn_cb(lv_event_t *e) {
   }
 }
 
+static void update_saved_networks_ui(void);
+
+static void saved_connect_btn_cb(lv_event_t *e) {
+  int idx = (int)(uintptr_t)lv_event_get_user_data(e);
+  char ssid[64] = "", pass[64] = "";
+  if (wifi_sys_get_saved(idx, ssid, sizeof(ssid), pass, sizeof(pass))) {
+    if (net_wifi_sw && !lv_obj_has_state(net_wifi_sw, LV_STATE_CHECKED)) {
+      lv_obj_add_state(net_wifi_sw, LV_STATE_CHECKED);
+      wifi_sys_set_enabled(true);
+    }
+    if (net_wifi_status_label) {
+      char buf[128];
+      snprintf(buf, sizeof(buf), "Status: Connecting to saved '%s'...", ssid);
+      lv_label_set_text(net_wifi_status_label, buf);
+    }
+    wifi_sys_connect(ssid, pass);
+  }
+}
+
+static void saved_delete_btn_cb(lv_event_t *e) {
+  int idx = (int)(uintptr_t)lv_event_get_user_data(e);
+  wifi_sys_delete_saved(idx);
+  update_saved_networks_ui();
+}
+
+static void update_saved_networks_ui(void) {
+  if (!net_saved_cont) return;
+
+  lv_obj_clean(net_saved_cont);
+
+  int count = wifi_sys_get_saved_count();
+  if (count == 0) {
+    lv_obj_t *empty_lbl = lv_label_create(net_saved_cont);
+    lv_label_set_text(empty_lbl, "No saved networks in memory");
+    lv_obj_add_style(empty_lbl, &style_text_muted, 0);
+    return;
+  }
+
+  for (int i = 0; i < count; i++) {
+    char ssid[64] = "", pass[64] = "";
+    if (wifi_sys_get_saved(i, ssid, sizeof(ssid), pass, sizeof(pass))) {
+      lv_obj_t *row = lv_obj_create(net_saved_cont);
+      lv_obj_remove_style_all(row);
+      lv_obj_set_size(row, lv_pct(100), LV_SIZE_CONTENT);
+      lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+      lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+      lv_obj_t *name_lbl = lv_label_create(row);
+      char label_text[96];
+      snprintf(label_text, sizeof(label_text), LV_SYMBOL_WIFI " %s", ssid);
+      lv_label_set_text(name_lbl, label_text);
+
+      lv_obj_t *btn_row = lv_obj_create(row);
+      lv_obj_remove_style_all(btn_row);
+      lv_obj_set_size(btn_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+      lv_obj_set_flex_flow(btn_row, LV_FLEX_FLOW_ROW);
+      lv_obj_set_style_pad_column(btn_row, 6, 0);
+
+      /* Connect Button */
+      lv_obj_t *c_btn = lv_btn_create(btn_row);
+      lv_obj_set_style_pad_ver(c_btn, 4, 0);
+      lv_obj_set_style_pad_hor(c_btn, 8, 0);
+      lv_obj_set_style_bg_color(c_btn, current_accent_color, 0);
+      lv_obj_t *c_lbl = lv_label_create(c_btn);
+      lv_label_set_text(c_lbl, "Connect");
+      lv_obj_add_event_cb(c_btn, saved_connect_btn_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i);
+
+      /* Delete Button */
+      lv_obj_t *d_btn = lv_btn_create(btn_row);
+      lv_obj_set_style_pad_ver(d_btn, 4, 0);
+      lv_obj_set_style_pad_hor(d_btn, 8, 0);
+      lv_obj_set_style_bg_color(d_btn, lv_color_hex(0xEF4444), 0); /* Red */
+      lv_obj_t *d_lbl = lv_label_create(d_btn);
+      lv_label_set_text(d_lbl, LV_SYMBOL_TRASH);
+      lv_obj_add_event_cb(d_btn, saved_delete_btn_cb, LV_EVENT_CLICKED, (void*)(uintptr_t)i);
+    }
+  }
+}
+
 static void wifi_connect_btn_cb(lv_event_t *e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
 
@@ -513,6 +593,7 @@ static void wifi_connect_btn_cb(lv_event_t *e) {
   }
 
   wifi_sys_connect(selected_ssid, password);
+  update_saved_networks_ui();
 }
 
 static void wifi_disconnect_btn_cb(lv_event_t *e) {
@@ -685,6 +766,19 @@ static void network_create(lv_obj_t *parent) {
   lv_label_set_text(disconn_lbl, LV_SYMBOL_CLOSE " Disconnect");
   lv_obj_center(disconn_lbl);
   lv_obj_add_event_cb(disconn_btn, wifi_disconnect_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  /* Saved Networks Container (Max 3) */
+  lv_obj_t *s_title = lv_label_create(wifi_box);
+  lv_label_set_text(s_title, LV_SYMBOL_SAVE " Saved Networks (Max 3)");
+  lv_obj_add_style(s_title, &style_text_muted, 0);
+
+  net_saved_cont = lv_obj_create(wifi_box);
+  lv_obj_remove_style_all(net_saved_cont);
+  lv_obj_set_size(net_saved_cont, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(net_saved_cont, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_row(net_saved_cont, 6, 0);
+
+  update_saved_networks_ui();
 
   /* --- SECTION 2: IPv4 Configuration --- */
   lv_obj_t *ip_box = lv_obj_create(panel);

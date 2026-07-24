@@ -26,6 +26,12 @@ bool wifi_sys_is_connected(void);
 /* Returns current IP address string e.g. "192.168.1.105" */
 const char* wifi_sys_get_ip_str(void);
 
+/* Persistent NVS Saved Networks (Max 3) */
+int wifi_sys_get_saved_count(void);
+bool wifi_sys_get_saved(int idx, char *ssid_out, size_t ssid_size, char *pass_out, size_t pass_size);
+bool wifi_sys_save_network(const char *ssid, const char *password);
+bool wifi_sys_delete_saved(int idx);
+
 #ifdef __cplusplus
 }
 #endif
