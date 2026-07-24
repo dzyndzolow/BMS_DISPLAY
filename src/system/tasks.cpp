@@ -171,9 +171,9 @@ void lvglTask(void *pvParameters) {
     return;
   }
 
-  /*Start battery monitor screens (replaces lv_demo_widgets)*/
-  init_battery_screens();
-  Serial.println("[Tasks] Battery monitor screens started");
+  /*Start demo widgets with Arc display and live SOC indicator*/
+  lv_demo_widgets();
+  Serial.println("[Tasks] LVGL demo widgets started");
 
   /*Main LVGL rendering loop*/
   while (true) {
