@@ -901,11 +901,11 @@ static void profile_create(lv_obj_t *parent) {
   lv_obj_add_style(bat_soc_lbl, &style_text_muted, 0);
   lv_obj_align(bat_soc_lbl, LV_ALIGN_CENTER, 0, -42);
 
-  /* Percentage label inside the Arc (using precompiled Montserrat 32 font) */
+  /* Percentage label inside the Arc (using precompiled Montserrat font) */
   lv_obj_t *pct_lbl = lv_label_create(avatar);
   profile_pct_label = pct_lbl;
   lv_label_set_text(pct_lbl, "70%");
-  lv_obj_set_style_text_font(pct_lbl, &lv_font_montserrat_32, 0);
+  lv_obj_set_style_text_font(pct_lbl, &lv_font_montserrat_36, 0);
   lv_obj_set_style_text_color(pct_lbl, current_accent_color, 0);
   lv_obj_align(pct_lbl, LV_ALIGN_CENTER, 0, -3);
 
