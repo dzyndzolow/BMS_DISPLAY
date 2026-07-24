@@ -55,6 +55,7 @@ static lv_obj_t *create_shop_item(lv_obj_t *parent, const void *img_src,
 
 static void color_changer_event_cb(lv_event_t *e);
 static void color_event_cb(lv_event_t *e);
+static void net_ta_event_cb(lv_event_t *e);
 static void ta_event_cb(lv_event_t *e);
 static void backlight_slider_cb(lv_event_t *e);
 static void reset_btn_event_cb(lv_event_t *e);
@@ -419,7 +420,7 @@ static void settings_create(lv_obj_t *parent) {
 
 static lv_obj_t *net_kb = NULL;
 
-static void ta_event_cb(lv_event_t *e) {
+static void net_ta_event_cb(lv_event_t *e) {
   lv_event_code_t code = lv_event_get_code(e);
   lv_obj_t *ta = lv_event_get_target(e);
 
@@ -570,7 +571,7 @@ static void network_create(lv_obj_t *parent) {
   lv_textarea_set_one_line(net_wifi_pass_ta, true);
   lv_textarea_set_password_mode(net_wifi_pass_ta, true);
   lv_textarea_set_placeholder_text(net_wifi_pass_ta, "Enter password...");
-  lv_obj_add_event_cb(net_wifi_pass_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_add_event_cb(net_wifi_pass_ta, net_ta_event_cb, LV_EVENT_ALL, NULL);
 
   /* Action Buttons (Connect / Disconnect) */
   lv_obj_t *w_act_row = lv_obj_create(wifi_box);
@@ -640,7 +641,7 @@ static void network_create(lv_obj_t *parent) {
     lv_obj_set_width(f_ta, lv_pct(100));
     lv_textarea_set_one_line(f_ta, true);
     lv_textarea_set_placeholder_text(f_ta, ip_field_placeholders[i]);
-    lv_obj_add_event_cb(f_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(f_ta, net_ta_event_cb, LV_EVENT_ALL, NULL);
   }
 
   /* --- SECTION 3: MQTT Broker & Home Assistant Auto-Discovery --- */
@@ -670,7 +671,7 @@ static void network_create(lv_obj_t *parent) {
   lv_obj_set_width(m_host_ta, lv_pct(100));
   lv_textarea_set_one_line(m_host_ta, true);
   lv_textarea_set_placeholder_text(m_host_ta, "192.168.1.200 or mqtt.home");
-  lv_obj_add_event_cb(m_host_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_add_event_cb(m_host_ta, net_ta_event_cb, LV_EVENT_ALL, NULL);
 
   lv_obj_t *m_port_lbl = lv_label_create(mqtt_box);
   lv_label_set_text(m_port_lbl, "Port");
@@ -680,7 +681,7 @@ static void network_create(lv_obj_t *parent) {
   lv_obj_set_width(m_port_ta, lv_pct(100));
   lv_textarea_set_one_line(m_port_ta, true);
   lv_textarea_set_placeholder_text(m_port_ta, "1883");
-  lv_obj_add_event_cb(m_port_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_add_event_cb(m_port_ta, net_ta_event_cb, LV_EVENT_ALL, NULL);
 
   lv_obj_t *m_user_lbl = lv_label_create(mqtt_box);
   lv_label_set_text(m_user_lbl, "Username / Password");
@@ -690,14 +691,14 @@ static void network_create(lv_obj_t *parent) {
   lv_obj_set_width(m_user_ta, lv_pct(100));
   lv_textarea_set_one_line(m_user_ta, true);
   lv_textarea_set_placeholder_text(m_user_ta, "MQTT Username");
-  lv_obj_add_event_cb(m_user_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_add_event_cb(m_user_ta, net_ta_event_cb, LV_EVENT_ALL, NULL);
 
   lv_obj_t *m_pass_ta = lv_textarea_create(mqtt_box);
   lv_obj_set_width(m_pass_ta, lv_pct(100));
   lv_textarea_set_one_line(m_pass_ta, true);
   lv_textarea_set_password_mode(m_pass_ta, true);
   lv_textarea_set_placeholder_text(m_pass_ta, "MQTT Password");
-  lv_obj_add_event_cb(m_pass_ta, ta_event_cb, LV_EVENT_ALL, NULL);
+  lv_obj_add_event_cb(m_pass_ta, net_ta_event_cb, LV_EVENT_ALL, NULL);
 
   lv_obj_t *m_conn_btn = lv_btn_create(mqtt_box);
   lv_obj_set_width(m_conn_btn, lv_pct(100));
