@@ -9,6 +9,7 @@
 #include "lv_demo_widgets.h"
 #include "logger.h"
 #include "sd_card.h"
+#include "system/wifi_manager.h"
 #include <esp_system.h>
 #include <stdio.h>
 #include <string.h>
@@ -119,6 +120,7 @@ static lv_obj_t *color_changer_title_cont = NULL;
 static lv_obj_t *color_changer_swatches_cont = NULL;
 
 static lv_obj_t *net_wifi_status_label = NULL;
+static lv_obj_t *net_wifi_sw = NULL;
 static lv_obj_t *net_wifi_dropdown = NULL;
 static lv_obj_t *net_wifi_pass_ta = NULL;
 static lv_obj_t *net_mqtt_status_label = NULL;
@@ -440,34 +442,99 @@ static void net_ta_event_cb(lv_event_t *e) {
   }
 }
 
+static void wifi_sw_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) return;
+
+  bool is_on = lv_obj_has_state(net_wifi_sw, LV_STATE_CHECKED);
+  wifi_sys_set_enabled(is_on);
+
+  if (net_wifi_status_label) {
+    if (is_on) {
+      if (wifi_sys_is_connected()) {
+        char status_buf[64];
+        snprintf(status_buf, sizeof(status_buf), "Status: Connected (%s)", wifi_sys_get_ip_str());
+        lv_label_set_text(net_wifi_status_label, status_buf);
+      } else {
+        lv_label_set_text(net_wifi_status_label, "Status: WiFi Enabled (Not connected)");
+      }
+    } else {
+      lv_label_set_text(net_wifi_status_label, "Status: WiFi Disabled");
+    }
+  }
+}
+
 static void wifi_scan_btn_cb(lv_event_t *e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
 
-  if (net_wifi_status_label) {
-    lv_label_set_text(net_wifi_status_label, "Status: Scanning networks...");
+  if (net_wifi_sw && !lv_obj_has_state(net_wifi_sw, LV_STATE_CHECKED)) {
+    lv_obj_add_state(net_wifi_sw, LV_STATE_CHECKED);
+    wifi_sys_set_enabled(true);
   }
+
+  if (net_wifi_status_label) {
+    lv_label_set_text(net_wifi_status_label, "Status: Scanning hardware networks...");
+    lv_obj_invalidate(net_wifi_status_label);
+  }
+
+  static char scan_options[512];
+  int count = wifi_sys_scan_networks(scan_options, sizeof(scan_options));
+
   if (net_wifi_dropdown) {
-    lv_dropdown_set_options(net_wifi_dropdown,
-      "BMS_Home_Network\nBMS_Workshop_5G\nESP32_Access_Point\nGuest_WiFi\n[ Manual Entry ]");
+    lv_dropdown_set_options(net_wifi_dropdown, scan_options);
   }
+
   if (net_wifi_status_label) {
-    lv_label_set_text(net_wifi_status_label, "Status: Scan complete (4 networks found)");
+    char status_buf[64];
+    snprintf(status_buf, sizeof(status_buf), "Status: Scan complete (%d networks found)", count);
+    lv_label_set_text(net_wifi_status_label, status_buf);
   }
 }
 
 static void wifi_connect_btn_cb(lv_event_t *e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
 
-  if (net_wifi_status_label) {
-    lv_label_set_text(net_wifi_status_label, "Status: Connected (192.168.1.105)");
+  if (net_wifi_sw && !lv_obj_has_state(net_wifi_sw, LV_STATE_CHECKED)) {
+    lv_obj_add_state(net_wifi_sw, LV_STATE_CHECKED);
+    wifi_sys_set_enabled(true);
   }
+
+  char selected_ssid[64] = "";
+  if (net_wifi_dropdown) {
+    lv_dropdown_get_selected_str(net_wifi_dropdown, selected_ssid, sizeof(selected_ssid));
+  }
+
+  const char *password = "";
+  if (net_wifi_pass_ta) {
+    password = lv_textarea_get_text(net_wifi_pass_ta);
+  }
+
+  if (net_wifi_status_label) {
+    lv_label_set_text(net_wifi_status_label, "Status: Connecting to WiFi...");
+  }
+
+  wifi_sys_connect(selected_ssid, password);
 }
 
 static void wifi_disconnect_btn_cb(lv_event_t *e) {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
 
+  wifi_sys_disconnect();
+
   if (net_wifi_status_label) {
     lv_label_set_text(net_wifi_status_label, "Status: Disconnected");
+  }
+}
+
+static void wifi_status_timer_cb(lv_timer_t *timer) {
+  LV_UNUSED(timer);
+  if (!net_wifi_status_label) return;
+
+  if (wifi_sys_is_enabled()) {
+    if (wifi_sys_is_connected()) {
+      char status_buf[64];
+      snprintf(status_buf, sizeof(status_buf), "Status: Connected (%s)", wifi_sys_get_ip_str());
+      lv_label_set_text(net_wifi_status_label, status_buf);
+    }
   }
 }
 
@@ -529,7 +596,7 @@ static void network_create(lv_obj_t *parent) {
   lv_obj_set_flex_flow(wifi_box, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_row(wifi_box, 6, 0);
 
-  /* Title + Scan Button Row */
+  /* Title + Switch + Scan Button Row */
   lv_obj_t *w_hdr = lv_obj_create(wifi_box);
   lv_obj_remove_style_all(w_hdr);
   lv_obj_set_size(w_hdr, lv_pct(100), LV_SIZE_CONTENT);
@@ -540,12 +607,34 @@ static void network_create(lv_obj_t *parent) {
   lv_label_set_text(w_lbl, LV_SYMBOL_WIFI " WiFi Manager");
   lv_obj_add_style(w_lbl, &style_title, 0);
 
-  lv_obj_t *scan_btn = lv_btn_create(w_hdr);
-  lv_obj_set_style_pad_ver(scan_btn, 6, 0);
-  lv_obj_set_style_pad_hor(scan_btn, 10, 0);
+  /* Container for Switch + Scan Button */
+  lv_obj_t *w_hdr_ctrls = lv_obj_create(w_hdr);
+  lv_obj_remove_style_all(w_hdr_ctrls);
+  lv_obj_set_size(w_hdr_ctrls, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(w_hdr_ctrls, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(w_hdr_ctrls, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(w_hdr_ctrls, 8, 0);
+
+  /* WiFi ON/OFF Switch next to Scan button */
+  net_wifi_sw = lv_switch_create(w_hdr_ctrls);
+  lv_obj_set_size(net_wifi_sw, 40, 22);
+  lv_obj_add_event_cb(net_wifi_sw, wifi_sw_cb, LV_EVENT_VALUE_CHANGED, NULL);
+  if (wifi_sys_is_enabled()) {
+    lv_obj_add_state(net_wifi_sw, LV_STATE_CHECKED);
+  } else {
+    lv_obj_clear_state(net_wifi_sw, LV_STATE_CHECKED);
+  }
+
+  /* Scan Button */
+  lv_obj_t *scan_btn = lv_btn_create(w_hdr_ctrls);
+  lv_obj_set_style_pad_ver(scan_btn, 4, 0);
+  lv_obj_set_style_pad_hor(scan_btn, 8, 0);
   lv_obj_t *scan_lbl = lv_label_create(scan_btn);
   lv_label_set_text(scan_lbl, LV_SYMBOL_REFRESH " Scan");
   lv_obj_add_event_cb(scan_btn, wifi_scan_btn_cb, LV_EVENT_CLICKED, NULL);
+
+  /* Periodic status update timer */
+  lv_timer_create(wifi_status_timer_cb, 1000, NULL);
 
   /* Status Label */
   net_wifi_status_label = lv_label_create(wifi_box);
