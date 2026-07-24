@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-S3 Panel Sterowania</title>
+    <link rel="stylesheet" href="css/simple.min.css">
+    <style>
+        :root {
+            --bg: #090d14;
+            --accent-bg: #111622;
+            --accent-border: #1d70d8;
+            --text-main: #ffffff;
+            --text-muted: #566d85;
+            --primary-btn: #1d70d8;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+        }
+        .status-card {
+            background: var(--accent-bg);
+            border: 1px solid var(--accent-border);
+            padding: 1.2rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            box-shadow: 0 4px 12px rgba(29, 112, 216, 0.15);
+        }
+        .status-card h3 {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        .status-card p {
+            color: var(--text-main);
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 0;
+        }
+        button, .button {
+            background-color: var(--primary-btn);
+            border-color: var(--primary-btn);
+            color: #ffffff;
+            border-radius: 6px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .control-group {
+            margin: 2rem 0;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .slider-container input[type="range"] {
+            flex: 1;
+        }
+        .slider-value {
+            min-width: 50px;
+            text-align: right;
+            font-weight: bold;
+        }
+        .refresh-info {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎛️ ESP32-S3 Panel Sterowania</h1>
+        <p>Zarządzaj swoim urządzeniem ESP32 z wyświetlaczem LVGL</p>
+        <nav>
+            <ul>
+                <li><a href="index.html">🏠 Główna</a></li>
+                <li><a href="pages/diagnostics.html">🔍 Diagnostyka</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- System Status Section -->
+        <section>
+            <h2>📊 Status Systemu</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <h3>⏱️ Czas działania</h3>
+                    <p id="uptime">Ładowanie...</p>
+                </div>
+                <div class="status-card">
+                    <h3>💾 Pamięć RAM</h3>
+                    <p id="memory">Ładowanie...</p>
+                </div>
+                <div class="status-card">
+                    <h3>📡 WiFi RSSI</h3>
+                    <p id="wifi">Ładowanie...</p>
+                </div>
+                <div class="status-card">
+                    <h3>🌡️ Temperatura</h3>
+                    <p id="temp">Ładowanie...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Display Controls Section -->
+        <section class="control-group">
+            <h2>🖥️ Sterowanie Wyświetlaczem</h2>
+            
+            <div>
+                <h3>Jasność ekranu</h3>
+                <div class="slider-container">
+                    <input type="range" id="brightness" min="0" max="100" value="80" step="5">
+                    <span class="slider-value" id="brightness-value">80%</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 2rem;">
+                <h3>Akcje</h3>
+                <button onclick="screenOn()">💡 Włącz ekran</button>
+                <button onclick="screenOff()">🌙 Wyłącz ekran</button>
+                <button onclick="refreshStatus()">🔄 Odśwież status</button>
+            </div>
+        </section>
+
+        <!-- Quick Actions Section -->
+        <section class="control-group">
+            <h2>⚡ Szybkie akcje</h2>
+            <button onclick="restartDevice()">🔄 Restart urządzenia</button>
+            <button onclick="clearLogs()">🗑️ Wyczyść logi</button>
+        </section>
+
+        <div class="refresh-info">
+            <p>ℹ️ Status odświeżany automatycznie co 5 sekund</p>
+        </div>
+    </main>
+
+    <footer>
+        <p>ESP32-S3 DevKitC-1 | LVGL 8.4 | Web Interface v1.0</p>
+    </footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

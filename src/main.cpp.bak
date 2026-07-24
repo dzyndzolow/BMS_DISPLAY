@@ -1,0 +1,203 @@
+/**
+ * @file main.cpp
+ * @brief ESP32-S3 LVGL + Web Framework Integration
+ * 
+ * Combined system with:
+ * - LVGL display interface (480x320)
+ * - WiFi connectivity
+ * - HTTP API server
+ * - WebSocket real-time communication
+ * 
+ * Architecture:
+ * ┌─────────────────────────────────────────────┐
+ * │          LVGL UI (Touch-enabled)            │
+ * │          Displays + Input Handler           │
+ * └────────────────┬────────────────────────────┘
+ *                  │
+ *          ┌───────▼────────┐
+ *          │   EventBus     │ (Publish/Subscribe)
+ *          └───────┬────────┘
+ *                  │
+ *    ┌─────────────┼─────────────┐
+ *    │             │             │
+ *    ▼             ▼             ▼
+ * [HAL]      [Services]      [WebServer]
+ * Display    Logger,Config   HTTP API
+ * Touch      EventBus        WebSocket
+ * Storage
+ */
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <web_integration.h>
+#include <wifi_config.h>
+#include <tasks.h>
+#include <sd_card.h>
+#include <logger.h>
+
+using namespace webint;
+
+// Forward declarations
+void webServerTask(void* parameter);
+
+//==============================================================================
+// Global Configuration
+//==============================================================================
+
+static const char* TAG = "MAIN";
+static bool wifiEnabled = false;
+
+//==============================================================================
+// Setup
+//==============================================================================
+
+void setup() {
+    // Initialize Serial
+    Serial.begin(115200);
+    delay(500);
+    Serial.println("\n\n================================================");
+    Serial.println("  ESP32-S3 LVGL + Web Framework Integration");
+    Serial.println("  Version: 1.0.0 | 8 December 2024");
+    Serial.println("================================================\n");
+    
+    // Initialize SD Card and Logger
+    if (sd_card_init()) {
+        Serial.println("[MAIN] SD Card initialized");
+        logger_init();
+        log_info(TAG, "System started, SD and logger initialized");
+    } else {
+        Serial.println("[MAIN] SD Card init failed - Serial only");
+    }
+    
+    // Initialize WiFi if enabled
+    if (WifiConfig::ENABLE_WIFI_ON_BOOT) {
+        Serial.println("[MAIN] Initializing WiFi...");
+        
+        if (WebIntegration::getInstance().init(
+            WifiConfig::SSID,
+            WifiConfig::PASSWORD,
+            WifiConfig::HTTP_PORT)) {
+            
+            wifiEnabled = true;
+            log_info(TAG, "WiFi initialized successfully");
+            Serial.print("[MAIN] Device IP: ");
+            Serial.println(WiFi.localIP());
+            
+            // Start web server
+            WebIntegration::getInstance().start();
+        } else {
+            log_warn(TAG, "WiFi initialization failed");
+        }
+    }
+    
+    // Create FreeRTOS tasks
+    Serial.println("[MAIN] Creating FreeRTOS tasks...");
+    
+    xTaskCreatePinnedToCore(
+        lvglTask,           // Task function
+        "LVGL Task",        // Task name
+        8192,               // Stack size
+        NULL,               // Parameters
+        2,                  // Priority
+        NULL,               // Task handle
+        0                   // Core 0
+    );
+    
+    xTaskCreatePinnedToCore(
+        defaultTask,
+        "Default Task",
+        4096,
+        NULL,
+        1,
+        NULL,
+        1                   // Core 1
+    );
+    
+    // Optional: Web server update task (if WiFi enabled)
+    if (wifiEnabled) {
+        xTaskCreatePinnedToCore(
+            webServerTask,
+            "WebServer Task",
+            4096,
+            NULL,
+            1,
+            NULL,
+            1
+        );
+    }
+    
+    Serial.println("[MAIN] Tasks created, scheduler running");
+    log_info(TAG, "Initialization complete");
+}
+
+//==============================================================================
+// Main Loop
+//==============================================================================
+
+void loop() {
+    // Tasks have taken over - this should not execute
+    vTaskDelete(NULL);
+}
+
+//==============================================================================
+// Web Server Task (optional)
+//==============================================================================
+
+void webServerTask(void* parameter) {
+    TickType_t lastUpdate = xTaskGetTickCount();
+    TickType_t updateInterval = pdMS_TO_TICKS(WifiConfig::STATUS_UPDATE_INTERVAL);
+    
+    Serial.println("[WebServerTask] Started");
+    
+    while (1) {
+        if (xTaskGetTickCount() - lastUpdate >= updateInterval) {
+            lastUpdate = xTaskGetTickCount();
+            
+            // Publish system status
+            if (WebIntegration::getInstance().isWiFiConnected()) {
+                // TODO: Publish sensor data via WebSocket
+                // WebIntegration::getInstance().publishSensorData(
+                //     "cpu_temp",
+                //     temperatureRead(),
+                //     "°C"
+                // );
+            }
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+//==============================================================================
+// Debug Information
+//==============================================================================
+
+void printSystemInfo() {
+    Serial.println("\n=== System Information ===");
+    Serial.print("ESP32-S3 MAC Address: ");
+    Serial.println(ESP.getEfuseMac());
+    Serial.print("ESP-IDF Version: ");
+    Serial.println(esp_get_idf_version());
+    Serial.print("Free Heap: ");
+    Serial.print(ESP.getFreeHeap());
+    Serial.println(" bytes");
+    Serial.print("Free PSRAM: ");
+    Serial.print(ESP.getFreePsram());
+    Serial.println(" bytes");
+    Serial.print("CPU Frequency: ");
+    Serial.print(ESP.getCpuFreqMHz());
+    Serial.println(" MHz");
+    
+    if (wifiEnabled) {
+        Serial.println("\n=== WiFi Information ===");
+        Serial.print("SSID: ");
+        Serial.println(WiFi.SSID());
+        Serial.print("IP Address: ");
+        Serial.println(WiFi.localIP());
+        Serial.print("Signal Strength: ");
+        Serial.print(WiFi.RSSI());
+        Serial.println(" dBm");
+    }
+    
+    Serial.println("========================\n");
+}

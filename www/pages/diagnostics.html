@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-S3 Diagnostyka</title>
+    <link rel="stylesheet" href="../css/simple.min.css">
+    <style>
+        .diag-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .diag-card {
+            background: var(--accent-bg);
+            padding: 1.5rem;
+            border-radius: 5px;
+        }
+        .diag-card h3 {
+            margin-top: 0;
+            color: var(--accent);
+        }
+        .diag-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .diag-item:last-child {
+            border-bottom: none;
+        }
+        .diag-label {
+            font-weight: 600;
+        }
+        .diag-value {
+            font-family: monospace;
+            color: var(--text-light);
+        }
+        .log-container {
+            background: var(--preformatted);
+            color: var(--text);
+            padding: 1rem;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 1rem 0;
+        }
+        .log-entry {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .log-time {
+            color: var(--accent);
+        }
+        .status-ok {
+            color: var(--accent);
+            font-weight: bold;
+        }
+        .status-warning {
+            color: var(--marked);
+            font-weight: bold;
+        }
+        .status-error {
+            color: var(--code);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🔍 Diagnostyka Systemu</h1>
+        <p>Szczegółowe informacje o urządzeniu ESP32-S3</p>
+        <nav>
+            <ul>
+                <li><a href="../index.html">🏠 Główna</a></li>
+                <li><a href="diagnostics.html">🔍 Diagnostyka</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hardware Info -->
+        <section>
+            <h2>💻 Informacje o sprzęcie</h2>
+            <div class="diag-grid">
+                <div class="diag-card">
+                    <h3>ESP32-S3</h3>
+                    <div class="diag-item">
+                        <span class="diag-label">Model:</span>
+                        <span class="diag-value" id="chip-model">ESP32-S3</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Rdzenie:</span>
+                        <span class="diag-value" id="cores">2</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Częstotliwość:</span>
+                        <span class="diag-value" id="cpu-freq">240 MHz</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Chip ID:</span>
+                        <span class="diag-value" id="chip-id">-</span>
+                    </div>
+                </div>
+
+                <div class="diag-card">
+                    <h3>💾 Pamięć</h3>
+                    <div class="diag-item">
+                        <span class="diag-label">RAM Total:</span>
+                        <span class="diag-value" id="ram-total">320 KB</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">RAM Wolna:</span>
+                        <span class="diag-value" id="ram-free">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">PSRAM:</span>
+                        <span class="diag-value" id="psram">8 MB</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Flash:</span>
+                        <span class="diag-value" id="flash">4 MB</span>
+                    </div>
+                </div>
+
+                <div class="diag-card">
+                    <h3>🖥️ Wyświetlacz</h3>
+                    <div class="diag-item">
+                        <span class="diag-label">Model:</span>
+                        <span class="diag-value">NV3041A</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Rozdzielczość:</span>
+                        <span class="diag-value">480x320</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Interfejs:</span>
+                        <span class="diag-value">Parallel 8-bit</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Touch:</span>
+                        <span class="diag-value">GT911</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Network Info -->
+        <section>
+            <h2>📡 Informacje sieciowe</h2>
+            <div class="diag-grid">
+                <div class="diag-card">
+                    <h3>WiFi</h3>
+                    <div class="diag-item">
+                        <span class="diag-label">Status:</span>
+                        <span class="diag-value status-ok" id="wifi-status">Połączono</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">SSID:</span>
+                        <span class="diag-value" id="ssid">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">IP Address:</span>
+                        <span class="diag-value" id="ip">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">MAC Address:</span>
+                        <span class="diag-value" id="mac">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">RSSI:</span>
+                        <span class="diag-value" id="rssi">-</span>
+                    </div>
+                </div>
+
+                <div class="diag-card">
+                    <h3>🌐 Serwer Web</h3>
+                    <div class="diag-item">
+                        <span class="diag-label">Status:</span>
+                        <span class="diag-value status-ok">Aktywny</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Port:</span>
+                        <span class="diag-value">80</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Żądania:</span>
+                        <span class="diag-value" id="requests">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Uptime:</span>
+                        <span class="diag-value" id="server-uptime">-</span>
+                    </div>
+                </div>
+
+                <div class="diag-card">
+                    <h3>💽 Storage (SD)</h3>
+                    <div class="diag-item">
+                        <span class="diag-label">Status:</span>
+                        <span class="diag-value status-ok" id="sd-status">Mounted</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Total:</span>
+                        <span class="diag-value" id="sd-total">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Used:</span>
+                        <span class="diag-value" id="sd-used">-</span>
+                    </div>
+                    <div class="diag-item">
+                        <span class="diag-label">Free:</span>
+                        <span class="diag-value" id="sd-free">-</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- System Logs -->
+        <section>
+            <h2>📝 Logi systemowe</h2>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                <button onclick="refreshLogs()">🔄 Odśwież logi</button>
+                <button onclick="clearLogs()">🗑️ Wyczyść logi</button>
+                <button onclick="downloadLogs()">💾 Pobierz logi</button>
+            </div>
+            <div class="log-container" id="logs">
+                <div class="log-entry">
+                    <span class="log-time">[00:00:00]</span> System boot...
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">[00:00:01]</span> WiFi connected
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">[00:00:02]</span> Web server started on port 80
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">[00:00:03]</span> LVGL initialized
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">[00:00:04]</span> Display ready
+                </div>
+            </div>
+        </section>
+
+        <!-- Actions -->
+        <section>
+            <h2>⚙️ Akcje diagnostyczne</h2>
+            <button onclick="exportDiagnostics()">📤 Eksportuj diagnostykę</button>
+            <button onclick="testDisplay()">🖥️ Test wyświetlacza</button>
+            <button onclick="testTouch()">👆 Test dotyku</button>
+            <button onclick="testSD()">💾 Test SD Card</button>
+            <button onclick="pingTest()">📡 Test połączenia</button>
+        </section>
+
+        <div style="margin-top: 2rem; padding: 1rem; background: var(--accent-bg); border-radius: 5px;">
+            <p><strong>ℹ️ Informacja:</strong> Dane odświeżane automatycznie co 10 sekund</p>
+        </div>
+    </main>
+
+    <footer>
+        <p>ESP32-S3 DevKitC-1 | LVGL 8.4 | Diagnostyka v1.0</p>
+    </footer>
+
+    <script src="../js/app.js"></script>
+    <script>
+        // Auto-refresh diagnostics every 10 seconds
+        setInterval(refreshDiagnostics, 10000);
+        
+        // Load diagnostics on page load
+        window.addEventListener('load', refreshDiagnostics);
+    </script>
+</body>
+</html>

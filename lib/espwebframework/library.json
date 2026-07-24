@@ -1,0 +1,37 @@
+{
+    "name": "ESPWebFramework",
+    "version": "1.0.0",
+    "description": "Django-inspired C++ web framework for ESP32-S3 with PSRAM support",
+    "keywords": [
+        "esp32",
+        "web",
+        "framework",
+        "http",
+        "websocket",
+        "rest",
+        "api",
+        "django",
+        "router",
+        "template"
+    ],
+    "authors": [
+        {
+            "name": "ESP Web Framework Team"
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/espwebframework/espwebframework"
+    },
+    "frameworks": "arduino",
+    "platforms": "espressif32",
+    "dependencies": {
+        "bblanchon/ArduinoJson": "^7.0.0"
+    },
+    "build": {
+        "flags": [
+            "-std=c++17",
+            "-DBOARD_HAS_PSRAM"
+        ]
+    }
+}

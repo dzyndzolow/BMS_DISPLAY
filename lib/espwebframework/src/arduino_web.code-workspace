@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../../../.."
+		},
+		{
+			"name": "web_serwer",
+			"path": "../../.."
+		}
+	],
+	"settings": {}
+}
